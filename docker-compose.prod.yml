@@ -2,16 +2,9 @@ version: '3.8'
 
 services:
   bot-pendientes:
-    # Opción 1: Build local (desarrollo)
-    build:
-      context: .
-      dockerfile: Dockerfile
-    
-    # Opción 2: Usar imagen desde GHCR (producción)
-    # Descomenta la siguiente línea y comenta el 'build' para usar GHCR
-    # image: ghcr.io/tu-usuario/bot-pendientes:latest
-    
-    image: bot-pendientes:latest
+    # Imagen desde GitHub Container Registry
+    image: ghcr.io/jamesnoria/bot-telegram-trilium:latest
+    pull_policy: always
     container_name: telegram-todo-bot
     restart: unless-stopped
     

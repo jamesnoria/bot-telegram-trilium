@@ -1,0 +1,75 @@
+services:
+  bot-telegram-trilium:
+    image: ghcr.io/jamesnoria/bot-telegram-trilium:latest
+    pull_policy: always
+    container_name: telegram-trilium-bot
+    restart: unless-stopped
+
+    # Variables de entorno desde archivo .env
+    env_file:
+      - .env
+
+    # Variables de entorno adicionales para producción
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+
+    # Volúmenes para persistir datos
+    volumes:
+      # Logs persistentes en directorio local
+      - ./logs:/app/logs:rw
+
+    # Configuración de logging optimizada para producción
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+        labels: "service=telegram-bot"
+
+    # Recursos optimizados para servidor
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+          cpus: "0.5"
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+    # Health check para monitoreo
+    healthcheck:
+      test: ["CMD", "node", "-e", "console.log('Bot health check')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Red personalizada
+    networks:
+      - bot-network
+
+# Configuraciones adicionales para producción
+networks:
+  bot-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# Volúmenes nombrados para persistencia
+volumes:
+  bot_logs:
+    driver: local
+
+# Configuración de logging a nivel global
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"

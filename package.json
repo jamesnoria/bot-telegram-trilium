@@ -20,6 +20,11 @@
     "compose:build": "docker-compose build",
     "compose:prod": "docker-compose -f docker-compose.prod.yml up -d",
     "compose:prod-down": "docker-compose -f docker-compose.prod.yml down",
+    "server:up": "docker compose -f docker-compose.server.yml up -d",
+    "server:down": "docker compose -f docker-compose.server.yml down",
+    "server:logs": "docker compose -f docker-compose.server.yml logs -f",
+    "server:restart": "npm run server:down && npm run server:up",
+    "server:deploy": "./quick-deploy.sh",
     "ghcr:login": "echo $GITHUB_TOKEN | docker login ghcr.io -u $(git config user.name) --password-stdin",
     "ghcr:build-push": "npm run docker:build-ghcr && npm run docker:push-ghcr"
   },
