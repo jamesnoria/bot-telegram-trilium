@@ -5,7 +5,23 @@ const { logger, logUserInteraction } = require('../config/logger');
  */
 class TaskManager {
   constructor() {
-    // Almacenar las tareas en memoria (en producción usar una base de datos)
+    // Almacenar las tareas en memoria (en produ  /**
+   * Cargar tareas desde Trilium al inicio
+   * @param {Array} tasks - Array de tareas a cargar
+   * @param {string} targetUserId - ID del usuario objetivo (por defecto 'startup_tasks')
+   */
+  loadTasks(tasks, targetUserId = 'startup_tasks') {
+    if (tasks && tasks.length > 0) {
+      this.userTasks[targetUserId] = tasks;
+      
+      logger.info("Tasks loaded with correct status from Trilium", {
+        loadedTaskCount: tasks.length,
+        completedTasks: tasks.filter(t => t.completed).length,
+        pendingTasks: tasks.filter(t => !t.completed).length,
+        userId: targetUserId
+      });
+    }
+  }base de datos)
     this.userTasks = {};
   }
 
@@ -224,10 +240,8 @@ class TaskManager {
     if (tasks && tasks.length > 0) {
       this.userTasks[targetUserId] = tasks;
       
-      logger.info("Tasks loaded with correct status from Trilium", {
+      logger.info("Tasks loaded", {
         loadedTaskCount: tasks.length,
-        completedTasks: tasks.filter(t => t.completed).length,
-        pendingTasks: tasks.filter(t => !t.completed).length,
         userId: targetUserId
       });
     }

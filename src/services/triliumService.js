@@ -15,20 +15,19 @@ class TriliumService {
    * @param {Array} tasks - Array de tareas
    * @param {string} userId - ID del usuario
    * @param {string} username - Nombre del usuario
-   * @returns {string} HTML formateado con las tareas pendientes
+   * @returns {string} HTML formateado con TODAS las tareas (completadas y pendientes)
    */
   formatTasksAsHTML(tasks, userId, username) {
-    // Filtrar solo las tareas pendientes (no completadas)
-    const pendingTasks = tasks.filter(task => !task.completed);
-    
-    if (pendingTasks.length === 0) {
-      return '<p>✅ No hay tareas pendientes</p>';
+    if (tasks.length === 0) {
+      return '<p>✅ No hay tareas</p>';
     }
 
     let html = '<ul class="todo-list">';
     
-    pendingTasks.forEach((task) => {
-      html += `<li><label class="todo-list__label"><input type="checkbox" disabled="disabled"><span class="todo-list__label__description">&nbsp;${task.text}&nbsp;</span></label></li>`;
+    tasks.forEach((task) => {
+      // Marcar checkbox según el estado de completado, usando el formato exacto de Trilium
+      const checkedAttribute = task.completed ? ' checked="checked"' : '';
+      html += `<li><label class="todo-list__label"><input type="checkbox"${checkedAttribute} disabled="disabled"><span class="todo-list__label__description">&nbsp;${task.text}&nbsp;</span></label></li>`;
     });
     
     html += '</ul>';
@@ -45,17 +44,18 @@ class TriliumService {
    */
   async sendTasksToTrilium(tasks, userId, username) {
     try {
-      // Generar el HTML de las tareas pendientes actuales
+      // Generar el HTML de TODAS las tareas (completadas y pendientes)
       const newTasksHTML = this.formatTasksAsHTML(tasks, userId, username);
       const pendingTasks = tasks.filter(task => !task.completed);
+      const completedTasks = tasks.filter(task => task.completed);
       
       // Log del contenido que se va a enviar
-      logger.info("Sending current tasks HTML content to Trilium", {
+      logger.info("Sending ALL tasks HTML content to Trilium", {
         userId,
         username,
         totalTasks: tasks.length,
         pendingTasks: pendingTasks.length,
-        completedTasks: tasks.length - pendingTasks.length,
+        completedTasks: completedTasks.length,
         contentLength: newTasksHTML.length,
         contentPreview: newTasksHTML.substring(0, 300) + '...',
         apiUrl: this.apiUrl
@@ -126,7 +126,7 @@ class TriliumService {
   /**
    * Extraer tareas del HTML de Trilium
    * @param {string} htmlContent - Contenido HTML de Trilium
-   * @returns {Array} Array de tareas extraídas
+   * @returns {Array} Array de tareas extraídas con estado correcto
    */
   extractTasksFromHTML(htmlContent) {
     const tasks = [];
@@ -135,22 +135,30 @@ class TriliumService {
       return tasks;
     }
 
-    // Buscar todas las tareas en el HTML usando regex
-    const taskRegex = /<span class="todo-list__label__description">&nbsp;(.+?)&nbsp;<\/span>/g;
+    // Buscar todas las tareas en el HTML con regex que capture el formato exacto de Trilium
+    // Formato: <li><label class="todo-list__label"><input type="checkbox" [checked="checked"] disabled="disabled"><span class="todo-list__label__description">&nbsp;TEXTO&nbsp;</span></label></li>
+    const taskRegex = /<li>\s*<label class="todo-list__label"><input type="checkbox"([^>]*?)disabled="disabled"><span class="todo-list__label__description">&nbsp;(.+?)&nbsp;<\/span><\/label>\s*<\/li>/g;
     let match;
     
     while ((match = taskRegex.exec(htmlContent)) !== null) {
-      const taskText = match[1];
+      const checkboxAttributes = match[1];
+      const taskText = match[2];
+      
+      // Verificar si el checkbox está marcado buscando 'checked="checked"'
+      const isCompleted = checkboxAttributes.includes('checked="checked"');
+      
       tasks.push({
         text: taskText,
-        completed: false, // Las tareas en Trilium son siempre pendientes
+        completed: isCompleted,
         createdAt: new Date()
       });
     }
 
-    logger.info("Extracted tasks from Trilium HTML", {
+    logger.info("Extracted tasks from Trilium HTML with correct status", {
       extractedTaskCount: tasks.length,
-      tasks: tasks.map(t => t.text)
+      completedTasks: tasks.filter(t => t.completed).length,
+      pendingTasks: tasks.filter(t => !t.completed).length,
+      tasks: tasks.map(t => ({ text: t.text, completed: t.completed }))
     });
 
     return tasks;
@@ -169,8 +177,10 @@ class TriliumService {
       if (existingContentResult.success) {
         const tasks = this.extractTasksFromHTML(existingContentResult.content);
         
-        logger.info("Tasks loaded successfully from Trilium", {
-          loadedTaskCount: tasks.length
+        logger.info("Tasks loaded successfully from Trilium with status", {
+          loadedTaskCount: tasks.length,
+          completedTasks: tasks.filter(t => t.completed).length,
+          pendingTasks: tasks.filter(t => !t.completed).length
         });
 
         return tasks;

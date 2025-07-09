@@ -33,6 +33,7 @@ class BotCommands {
     this.setupClearCommand();
     this.setupHelpCommand();
     this.setupSyncCommand();
+    this.setupReloadCommand();
   }
 
   /**
@@ -123,14 +124,47 @@ class BotCommands {
       const taskText = match[1];
 
       try {
-        // Agregar la tarea
+        // 1. PRIMERO: Sincronizar desde Trilium para capturar cambios externos
+        logger.info("Syncing from Trilium before adding new task", {
+          chatId,
+          userId,
+          taskText
+        });
+
+        const triliumTasks = await this.triliumService.loadTasksFromTrilium();
+        
+        if (triliumTasks.length > 0) {
+          // Sincronizar las tareas existentes con los datos de Trilium
+          const syncResult = this.taskManager.syncTasksFromTrilium(userId, triliumTasks);
+          
+          if (syncResult.success && (syncResult.changes.updated.length > 0 || syncResult.changes.added.length > 0)) {
+            // Si hubo cambios, notificar al usuario
+            let syncMessage = "🔄 *Sincronizado con Trilium antes de agregar:*\n";
+            if (syncResult.changes.updated.length > 0) {
+              syncMessage += `✅ ${syncResult.changes.updated.length} tarea(s) actualizadas\n`;
+            }
+            if (syncResult.changes.added.length > 0) {
+              syncMessage += `🆕 ${syncResult.changes.added.length} tarea(s) nuevas encontradas\n`;
+            }
+            
+            await this.bot.sendMessage(chatId, syncMessage, { parse_mode: "Markdown" });
+            
+            logger.info("Pre-add sync completed with changes", {
+              chatId,
+              userId,
+              changes: syncResult.changes
+            });
+          }
+        }
+
+        // 2. SEGUNDO: Agregar la nueva tarea
         this.taskManager.addTask(userId, taskText, msg);
         const tasks = this.taskManager.getUserTasks(userId);
 
         // Enviar mensaje de confirmación
         await this.bot.sendMessage(chatId, `✅ Tarea agregada: "${taskText}"`);
 
-        // Sincronizar automáticamente con Trilium
+        // 3. TERCERO: Sincronizar TODO con Trilium (incluyendo la nueva tarea)
         const syncResult = await this.triliumService.sendTasksToTrilium(tasks, userId, username);
 
         if (syncResult.success) {
@@ -455,6 +489,113 @@ class BotCommands {
         });
 
         logger.error("Unexpected sync error", {
+          chatId,
+          userId,
+          error: error.message,
+        });
+      }
+    });
+  }
+
+  /**
+   * Comando /reload - Recargar tareas desde Trilium
+   */
+  setupReloadCommand() {
+    this.bot.onText(/\/reload/, async (msg) => {
+      const chatId = msg.chat.id;
+      const userId = msg.from.id;
+      const username = getUserName(msg);
+
+      // Log de la interacción
+      logUserInteraction(msg, "RELOAD_FROM_TRILIUM", {});
+
+      // Enviar mensaje de "procesando"
+      const processingMessage = await this.bot.sendMessage(
+        chatId,
+        "🔄 Recargando tareas desde Trilium..."
+      );
+
+      try {
+        // Cargar tareas desde Trilium
+        const triliumTasks = await this.triliumService.loadTasksFromTrilium();
+
+        if (triliumTasks.length === 0) {
+          await this.bot.editMessageText(
+            "📝 No se encontraron tareas en Trilium.",
+            {
+              chat_id: chatId,
+              message_id: processingMessage.message_id,
+            }
+          );
+          return;
+        }
+
+        // Sincronizar con las tareas actuales del usuario
+        const syncResult = this.taskManager.syncTasksFromTrilium(userId, triliumTasks);
+
+        if (syncResult.success) {
+          const currentTasks = this.taskManager.getUserTasks(userId);
+          
+          let message = `✅ *Tareas recargadas desde Trilium*\n\n`;
+          message += `📊 Resumen:\n`;
+          message += `• Total de tareas: ${syncResult.tasks.length}\n`;
+          message += `• Completadas: ${syncResult.tasks.filter(t => t.completed).length}\n`;
+          message += `• Pendientes: ${syncResult.tasks.filter(t => !t.completed).length}\n\n`;
+          
+          if (syncResult.changes.added.length > 0) {
+            message += `🆕 Tareas nuevas: ${syncResult.changes.added.length}\n`;
+          }
+          if (syncResult.changes.updated.length > 0) {
+            message += `🔄 Tareas actualizadas: ${syncResult.changes.updated.length}\n`;
+          }
+          if (syncResult.changes.preserved.length > 0) {
+            message += `✨ Tareas preservadas: ${syncResult.changes.preserved.length}\n`;
+          }
+
+          await this.bot.editMessageText(message, {
+            chat_id: chatId,
+            message_id: processingMessage.message_id,
+            parse_mode: "Markdown",
+          });
+
+          // Mostrar la lista actualizada
+          setTimeout(async () => {
+            const taskListMessage = formatTaskList(currentTasks);
+            await this.bot.sendMessage(chatId, taskListMessage, {
+              parse_mode: "Markdown",
+            });
+          }, 1000);
+
+          logger.info("Tasks reloaded from Trilium successfully", {
+            chatId,
+            userId,
+            totalTasks: syncResult.tasks.length,
+            changes: syncResult.changes,
+          });
+        } else {
+          await this.bot.editMessageText(
+            "❌ Error al sincronizar las tareas recargadas.",
+            {
+              chat_id: chatId,
+              message_id: processingMessage.message_id,
+            }
+          );
+
+          logger.error("Failed to sync reloaded tasks", {
+            chatId,
+            userId,
+          });
+        }
+      } catch (error) {
+        await this.bot.editMessageText(
+          "❌ Error al recargar tareas desde Trilium.\n\nVerifica la conexión con Trilium.",
+          {
+            chat_id: chatId,
+            message_id: processingMessage.message_id,
+          }
+        );
+
+        logger.error("Failed to reload tasks from Trilium", {
           chatId,
           userId,
           error: error.message,

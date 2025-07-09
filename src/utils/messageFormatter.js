@@ -75,6 +75,7 @@ Comandos disponibles:
 ❌ /delete <número> - Eliminar tarea
 🗑️ /clear - Limpiar todas las tareas
 🔄 /sync - Sincronizar tareas con Trilium
+🔃 /reload - Recargar tareas desde Trilium
 ℹ️ /help - Ver esta ayuda
 
 ¡Empecemos a organizar tus tareas!
@@ -95,6 +96,7 @@ function getHelpMessage() {
 ❌ /delete <número> - Eliminar tarea
 🗑️ /clear - Limpiar todas las tareas
 🔄 /sync - Sincronizar tareas con Trilium
+🔃 /reload - Recargar tareas desde Trilium
 ℹ️ /help - Ver esta ayuda
 
 *Ejemplos:*
@@ -102,6 +104,7 @@ function getHelpMessage() {
 • /complete 1
 • /delete 2
 • /sync
+• /reload
   `;
 }
 
