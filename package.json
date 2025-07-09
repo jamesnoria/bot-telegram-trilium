@@ -1,0 +1,38 @@
+{
+  "name": "bot-pendientes",
+  "version": "2.0.0",
+  "description": "Bot de Telegram escalable y modular para gestionar tareas pendientes con sincronización automática a Trilium Notes",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "docker:build": "docker build -t bot-pendientes:latest .",
+    "docker:build-ghcr": "docker build -t ghcr.io/$(git config user.name)/bot-pendientes:latest .",
+    "docker:push-ghcr": "docker push ghcr.io/$(git config user.name)/bot-pendientes:latest",
+    "docker:run": "docker run -d --name telegram-todo-bot --env-file .env bot-pendientes:latest",
+    "docker:run-ghcr": "docker run -d --name telegram-todo-bot --env-file .env ghcr.io/$(git config user.name)/bot-pendientes:latest",
+    "docker:stop": "docker stop telegram-todo-bot",
+    "docker:remove": "docker rm telegram-todo-bot",
+    "docker:logs": "docker logs -f telegram-todo-bot",
+    "compose:up": "docker-compose up -d",
+    "compose:down": "docker-compose down",
+    "compose:logs": "docker-compose logs -f",
+    "compose:build": "docker-compose build",
+    "compose:prod": "docker-compose -f docker-compose.prod.yml up -d",
+    "compose:prod-down": "docker-compose -f docker-compose.prod.yml down",
+    "ghcr:login": "echo $GITHUB_TOKEN | docker login ghcr.io -u $(git config user.name) --password-stdin",
+    "ghcr:build-push": "npm run docker:build-ghcr && npm run docker:push-ghcr"
+  },
+  "keywords": ["telegram", "bot", "todo", "tasks", "trilium", "modular", "scalable"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "node-telegram-bot-api": "^0.64.0",
+    "dotenv": "^16.3.1",
+    "winston": "^3.11.0",
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

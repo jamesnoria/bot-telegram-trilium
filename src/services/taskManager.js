@@ -1,0 +1,258 @@
+const { logger, logUserInteraction } = require('../config/logger');
+
+/**
+ * Servicio para gestionar las tareas de los usuarios
+ */
+class TaskManager {
+  constructor() {
+    // Almacenar las tareas en memoria (en producción usar una base de datos)
+    this.userTasks = {};
+  }
+
+  /**
+   * Obtener las tareas de un usuario específico
+   * @param {string} userId - ID del usuario
+   * @returns {Array} Array de tareas del usuario
+   */
+  getUserTasks(userId) {
+    if (!this.userTasks[userId]) {
+      this.userTasks[userId] = [];
+      
+      // Si es la primera vez que este usuario interactúa y hay tareas cargadas desde Trilium,
+      // transferirlas a este usuario
+      if (this.userTasks['startup_tasks'] && this.userTasks['startup_tasks'].length > 0) {
+        this.userTasks[userId] = [...this.userTasks['startup_tasks']];
+        delete this.userTasks['startup_tasks']; // Limpiar las tareas temporales
+        
+        logger.info("Transferred startup tasks to user", {
+          userId,
+          transferredTaskCount: this.userTasks[userId].length
+        });
+      }
+    }
+    return this.userTasks[userId];
+  }
+
+  /**
+   * Agregar una nueva tarea para un usuario
+   * @param {string} userId - ID del usuario
+   * @param {string} taskText - Texto de la tarea
+   * @param {Object} msg - Objeto del mensaje de Telegram para logging
+   * @returns {Object} La nueva tarea creada
+   */
+  addTask(userId, taskText, msg = null) {
+    const tasks = this.getUserTasks(userId);
+    const newTask = {
+      text: taskText,
+      completed: false,
+      createdAt: new Date(),
+    };
+
+    tasks.push(newTask);
+
+    // Log de la interacción si se proporciona el mensaje
+    if (msg) {
+      logUserInteraction(msg, "ADD_TASK", {
+        taskText: taskText,
+        taskLength: taskText.length,
+        totalTasks: tasks.length,
+      });
+    }
+
+    logger.info("Task added", {
+      userId,
+      taskText,
+      totalTasks: tasks.length,
+    });
+
+    return newTask;
+  }
+
+  /**
+   * Marcar una tarea como completada
+   * @param {string} userId - ID del usuario
+   * @param {number} taskIndex - Índice de la tarea (0-based)
+   * @param {Object} msg - Objeto del mensaje de Telegram para logging
+   * @returns {Object} Resultado con success, task y wasAlreadyCompleted
+   */
+  completeTask(userId, taskIndex, msg = null) {
+    const tasks = this.getUserTasks(userId);
+
+    if (taskIndex >= 0 && taskIndex < tasks.length) {
+      const task = tasks[taskIndex];
+      const wasAlreadyCompleted = task.completed;
+      task.completed = true;
+
+      // Log de la interacción si se proporciona el mensaje
+      if (msg) {
+        logUserInteraction(msg, "COMPLETE_TASK", {
+          taskIndex: taskIndex + 1,
+          taskText: task.text,
+          wasAlreadyCompleted,
+          totalTasks: tasks.length,
+          completedTasks: tasks.filter((t) => t.completed).length,
+        });
+      }
+
+      logger.info("Task completed", {
+        userId,
+        taskIndex: taskIndex + 1,
+        taskText: task.text,
+        wasAlreadyCompleted,
+      });
+
+      return { 
+        success: true, 
+        task, 
+        wasAlreadyCompleted 
+      };
+    } else {
+      // Log de error de índice inválido
+      if (msg) {
+        logUserInteraction(msg, "COMPLETE_TASK_ERROR", {
+          invalidTaskIndex: taskIndex + 1,
+          totalTasks: tasks.length,
+          errorType: "INVALID_INDEX",
+        });
+      }
+
+      logger.warn("Invalid task index for completion", {
+        userId,
+        requestedIndex: taskIndex + 1,
+        totalTasks: tasks.length,
+      });
+
+      return { 
+        success: false, 
+        error: "INVALID_INDEX" 
+      };
+    }
+  }
+
+  /**
+   * Eliminar una tarea
+   * @param {string} userId - ID del usuario
+   * @param {number} taskIndex - Índice de la tarea (0-based)
+   * @param {Object} msg - Objeto del mensaje de Telegram para logging
+   * @returns {Object} Resultado con success, deletedTask
+   */
+  deleteTask(userId, taskIndex, msg = null) {
+    const tasks = this.getUserTasks(userId);
+
+    if (taskIndex >= 0 && taskIndex < tasks.length) {
+      const deletedTask = tasks.splice(taskIndex, 1)[0];
+
+      // Log de la interacción si se proporciona el mensaje
+      if (msg) {
+        logUserInteraction(msg, "DELETE_TASK", {
+          taskIndex: taskIndex + 1,
+          taskText: deletedTask.text,
+          wasCompleted: deletedTask.completed,
+          remainingTasks: tasks.length,
+        });
+      }
+
+      logger.info("Task deleted", {
+        userId,
+        deletedTaskText: deletedTask.text,
+        remainingTasks: tasks.length,
+      });
+
+      return { 
+        success: true, 
+        deletedTask 
+      };
+    } else {
+      // Log de error de índice inválido
+      if (msg) {
+        logUserInteraction(msg, "DELETE_TASK_ERROR", {
+          invalidTaskIndex: taskIndex + 1,
+          totalTasks: tasks.length,
+          errorType: "INVALID_INDEX",
+        });
+      }
+
+      logger.warn("Invalid task index for deletion", {
+        userId,
+        requestedIndex: taskIndex + 1,
+        totalTasks: tasks.length,
+      });
+
+      return { 
+        success: false, 
+        error: "INVALID_INDEX" 
+      };
+    }
+  }
+
+  /**
+   * Limpiar todas las tareas de un usuario
+   * @param {string} userId - ID del usuario
+   * @param {Object} msg - Objeto del mensaje de Telegram para logging
+   * @returns {number} Número de tareas que fueron eliminadas
+   */
+  clearAllTasks(userId, msg = null) {
+    const tasks = this.getUserTasks(userId);
+    const taskCount = tasks.length;
+    const completedCount = tasks.filter((task) => task.completed).length;
+
+    this.userTasks[userId] = [];
+
+    // Log de la interacción si se proporciona el mensaje
+    if (msg) {
+      logUserInteraction(msg, "CLEAR_ALL_TASKS", {
+        clearedTaskCount: taskCount,
+        completedTasksCleared: completedCount,
+        pendingTasksCleared: taskCount - completedCount,
+      });
+    }
+
+    logger.info("All tasks cleared", {
+      userId,
+      clearedTaskCount: taskCount,
+    });
+
+    return taskCount;
+  }
+
+  /**
+   * Cargar tareas desde datos externos (ej: Trilium)
+   * @param {Array} tasks - Array de tareas a cargar
+   * @param {string} targetUserId - ID del usuario objetivo (por defecto 'startup_tasks')
+   */
+  loadTasks(tasks, targetUserId = 'startup_tasks') {
+    if (tasks && tasks.length > 0) {
+      this.userTasks[targetUserId] = tasks;
+      
+      logger.info("Tasks loaded", {
+        loadedTaskCount: tasks.length,
+        userId: targetUserId
+      });
+    }
+  }
+
+  /**
+   * Obtener estadísticas globales de las tareas
+   * @returns {Object} Estadísticas de uso
+   */
+  getStatistics() {
+    const totalUsers = Object.keys(this.userTasks).length;
+    const totalTasks = Object.values(this.userTasks).reduce(
+      (acc, tasks) => acc + tasks.length,
+      0
+    );
+    const completedTasks = Object.values(this.userTasks).reduce(
+      (acc, tasks) => acc + tasks.filter((task) => task.completed).length,
+      0
+    );
+
+    return {
+      totalUsers,
+      totalTasks,
+      completedTasks,
+      pendingTasks: totalTasks - completedTasks,
+    };
+  }
+}
+
+module.exports = TaskManager;

@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  bot-pendientes:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: bot-pendientes:latest
+    container_name: telegram-todo-bot
+    restart: unless-stopped
+    
+    # Variables de entorno (usar archivo .env)
+    env_file:
+      - .env
+    
+    # Volúmenes para persistir logs
+    volumes:
+      - ./logs:/app/logs:rw
+    
+    # Configuración de logging
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Recursos del contenedor
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.25'
+    
+    # Red personalizada (opcional)
+    networks:
+      - bot-network
+
+# Red personalizada
+networks:
+  bot-network:
+    driver: bridge
+
+# Volúmenes nombrados (opcional para logs persistentes)
+volumes:
+  bot-logs:
+    driver: local

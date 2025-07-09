@@ -1,0 +1,82 @@
+# Archivos y directorios a ignorar en el build de Docker
+
+# Dependencias de Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Logs
+*.log
+logs/
+combined.log
+error.log
+
+# Variables de entorno (contienen información sensible)
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Archivos de desarrollo
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Control de versiones
+.git/
+.gitignore
+.gitattributes
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Documentación y archivos de desarrollo
+README.md
+CHANGELOG.md
+*.md
+docs/
+
+# Archivos de configuración local
+.editorconfig
+.eslintrc*
+.prettierrc*
+nodemon.json
+
+# Archivos de respaldo
+*.backup
+*_backup.*
+index_backup.js
+
+# Archivos temporales
+tmp/
+temp/
+.tmp/
+
+# Coverage y tests
+coverage/
+.nyc_output/
+test/
+tests/
+*.test.js
+*.spec.js
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# Otros archivos de configuración
+.npmrc
+.yarnrc
